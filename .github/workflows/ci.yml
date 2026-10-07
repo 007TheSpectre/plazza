@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ── Job 1: verify the main binary compiles ───────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install compiler
+        run: sudo apt-get update && sudo apt-get install -y g++ make
+
+      - name: Compile
+        run: make
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: plazza-binary
+          path: plazza
+
+  # ── Job 2: build and run the test suite with coverage ───────────────────
+  tests:
+    name: Tests & Coverage
+    runs-on: ubuntu-22.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make libcriterion-dev python3-pip
+          sudo pip3 install gcovr
+
+      - name: Build and run tests with coverage
+        run: make tests_run
+
+  # ── Job 3: end-to-end functional tests against the real binary ──────────
+  functional:
+    name: Functional Tests
+    runs-on: ubuntu-22.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download binary
+        uses: actions/download-artifact@v8
+        with:
+          name: plazza-binary
+
+      - name: Run functional tests
+        run: |
+          chmod +x plazza
+          bash tests/functional/run_tests.sh
+
+  # ── Job 4: deploy Doxygen + diagrams to GitHub Pages ────────────────────
+  pages:
+    name: GitHub Pages
+    runs-on: ubuntu-22.04
+    needs: [tests, functional]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+
+      - name: Generate Doxygen HTML
+        run: doxygen Doxyfile
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site/api
+          cp -r docs/doxygen/html/. _site/api/
+          cp docs/index.html _site/index.html
+          cp docs/architecture.html _site/architecture.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v5
+
+  # ── Job 5: run test binary under Valgrind ───────────────────────────────
+  valgrind:
+    name: Valgrind
+    runs-on: ubuntu-22.04
+    needs: [tests, functional]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make libcriterion-dev valgrind
+
+      - name: Build tests
+        run: make tests
+
+      - name: Run under Valgrind
+        run: |
+          valgrind \
+            --leak-check=full \
+            --show-leak-kinds=all \
+            --track-origins=yes \
+            --error-exitcode=1 \
+            ./tests/build/unit_tests

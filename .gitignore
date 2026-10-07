@@ -1,0 +1,16 @@
+# Build artifacts
+*.o
+plazza
+
+# Test artifacts
+tests_plazza
+tests/build/
+
+# Coverage
+coverage.info
+coverage_html/
+
+# Doxygen generated output
+docs/doxygen/
+*#
+

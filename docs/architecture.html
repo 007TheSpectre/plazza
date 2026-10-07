@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Architecture — Plazza</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      padding: 2rem 1rem;
+    }
+
+    header {
+      max-width: 900px;
+      margin: 0 auto 2.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    header a {
+      color: #58a6ff;
+      text-decoration: none;
+      font-size: 0.875rem;
+    }
+
+    header a:hover { text-decoration: underline; }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+    }
+
+    header .sep { color: #484f58; }
+
+    .section {
+      max-width: 900px;
+      margin: 0 auto 3rem;
+    }
+
+    .section h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #21262d;
+    }
+
+    .diagram-box {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 2rem;
+      overflow-x: auto;
+    }
+
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="./">&#8592; Back</a>
+    <span class="sep">|</span>
+    <h1>Architecture Diagrams</h1>
+  </header>
+
+  <div class="section">
+    <h2>Process Architecture</h2>
+    <div class="diagram-box">
+      <pre class="mermaid">
+graph TD
+    main["main.cpp"] --> Reception
+
+    subgraph MainProc["Main Process"]
+        Reception --> Parser
+        Reception --> KP1["KitchenProxy 1"]
+        Reception --> KP2["KitchenProxy 2"]
+        Reception --> KPN["KitchenProxy N"]
+        Reception --> Poller["resultPollerLoop"]
+    end
+
+    KP1 -. "fork" .-> K1
+    KP2 -. "fork" .-> K2
+
+    subgraph Child1["Child Process 1"]
+        K1["Kitchen 1"] --> TP1["ThreadPool"]
+        K1 --> S1["Stock"]
+    end
+
+    subgraph Child2["Child Process 2"]
+        K2["Kitchen 2"] --> TP2["ThreadPool"]
+        K2 --> S2["Stock"]
+    end
+
+    KP1 --- |"order FIFO / result FIFO"| K1
+    KP2 --- |"order FIFO / result FIFO"| K2
+      </pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Order Lifecycle</h2>
+    <div class="diagram-box">
+      <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant Reception
+    participant Parser
+    participant KitchenProxy
+    participant Kitchen
+    participant ThreadPool
+    participant Stock
+
+    User->>Reception: margarita S x2 and regina M x1
+    Reception->>Parser: parse line
+    Parser-->>Reception: 3 pizzas parsed
+
+    loop for each pizza
+        Reception->>KitchenProxy: send PizzaPacket
+        KitchenProxy->>Kitchen: write to order FIFO
+        Kitchen->>ThreadPool: submit cookPizza
+        ThreadPool->>Stock: consume ingredients
+        Stock-->>ThreadPool: ok
+        Note over ThreadPool: sleep bakeTime x multiplier
+        ThreadPool->>Kitchen: write result to result FIFO
+        Kitchen-->>KitchenProxy: pollResult
+        KitchenProxy-->>Reception: PizzaPacket result
+        Reception-->>User: Order N is ready
+    end
+      </pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Class Hierarchy</h2>
+    <div class="diagram-box">
+      <pre class="mermaid">
+classDiagram
+    class IPizza {
+        &lt;&lt;interface&gt;&gt;
+        +type() PizzaType
+        +size() PizzaSize
+        +bakeTime() double
+        +ingredients() vector
+        +name() string
+    }
+    class IIPC {
+        &lt;&lt;interface&gt;&gt;
+        +send(data)
+        +receive() vector
+    }
+    class IKitchen {
+        &lt;&lt;interface&gt;&gt;
+        +status()
+    }
+
+    IPizza <|-- Margarita
+    IPizza <|-- Regina
+    IPizza <|-- Americana
+    IPizza <|-- Fantasia
+    IIPC <|-- NamedPipe
+    IKitchen <|-- Kitchen
+
+    class Reception {
+        +run()
+        -leastBusyKitchen()
+        -spawnKitchen()
+        -resultPollerLoop()
+    }
+    class KitchenProxy {
+        -pid
+        +send()
+        +pollResult() bool
+        +pendingCount() int
+    }
+    class Kitchen {
+        -pool ThreadPool
+        -stock Stock
+        +run()
+    }
+    class ThreadPool {
+        -tasks SafeQueue
+        +submit()
+        +pendingCount() int
+    }
+    class SafeQueue {
+        +push()
+        +pop()
+        +close()
+    }
+    class Stock {
+        -items map
+        +consume() bool
+    }
+
+    Reception "1" *-- "*" KitchenProxy
+    KitchenProxy *-- "2" NamedPipe
+    Kitchen *-- "1" ThreadPool
+    Kitchen *-- "1" Stock
+    ThreadPool *-- "1" SafeQueue
+      </pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Kitchen Lifecycle</h2>
+    <div class="diagram-box">
+      <pre class="mermaid">
+stateDiagram-v2
+    [*] --> Idle : process starts
+    Idle --> Active : order received
+    Active --> Active : pending orders
+    Active --> Idle : all orders done
+    Idle --> [*] : 5s idle timeout
+      </pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>IPC Wire Format</h2>
+    <div class="diagram-box">
+      <pre class="mermaid">
+sequenceDiagram
+    participant Sender as Sender (KitchenProxy or Kitchen)
+    participant FIFO as FIFO (kernel buffer)
+    participant Receiver as Receiver
+
+    Sender->>FIFO: write 4 bytes: payload length N
+    Sender->>FIFO: write N bytes: serialized PizzaPacket
+    Note over Sender,FIFO: Single write syscall, fits in PIPE_BUF, atomic
+
+    FIFO-->>Receiver: read 4 bytes: length N
+    FIFO-->>Receiver: read N bytes: payload
+    Receiver->>Receiver: memcpy into PizzaPacket struct
+      </pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Stock Replenishment</h2>
+    <div class="diagram-box">
+      <pre class="mermaid">
+graph TD
+    A["Stock created: 5 units x 9 ingredients"] --> B["replenishLoop starts"]
+    B --> C["sleep restockInterval ms"]
+    C --> D["lock mutex"]
+    D --> E["set all ingredients to 5"]
+    E --> F["unlock mutex"]
+    F --> C
+
+    G["cookPizza thread"] --> H["lock mutex"]
+    H --> I{"all ingredients available?"}
+    I -- yes --> J["deduct each ingredient"]
+    J --> K["unlock mutex, return true"]
+    I -- no --> L["unlock mutex, return false"]
+    L --> M["retry or fail order"]
+      </pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Module Dependencies</h2>
+    <div class="diagram-box">
+      <pre class="mermaid">
+graph TD
+    main --> Reception
+    Reception --> Parser
+    Reception --> KitchenProxy
+    Reception --> Kitchen
+
+    KitchenProxy --> NamedPipe
+    Kitchen --> NamedPipe
+    NamedPipe --> IIPC
+    KitchenProxy --> PizzaPacket
+    Kitchen --> PizzaPacket
+    PizzaPacket --> IIPC
+
+    Kitchen --> ThreadPool
+    Kitchen --> Stock
+    Kitchen --> PizzaFactory
+    ThreadPool --> SafeQueue
+
+    PizzaFactory --> IPizza
+    IPizza --> Margarita
+    IPizza --> Regina
+    IPizza --> Americana
+    IPizza --> Fantasia
+
+    ThreadPool --> IMutex
+    Stock --> IMutex
+    IMutex --> ScopedLock
+      </pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>CI/CD Pipeline</h2>
+    <div class="diagram-box">
+      <pre class="mermaid">
+graph LR
+    Build["Build"]
+    Tests["Tests and Coverage"]
+    Functional["Functional Tests"]
+    Valgrind["Valgrind"]
+    Pages["GitHub Pages"]
+
+    Build --> Tests
+    Build --> Functional
+    Tests --> Valgrind
+    Functional --> Valgrind
+    Valgrind --> Pages
+      </pre>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+</body>
+</html>

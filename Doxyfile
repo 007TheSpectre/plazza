@@ -1,0 +1,35 @@
+PROJECT_NAME           = "Plazza"
+PROJECT_BRIEF          = "Epitech G-CCP-400 — Multi-process pizzeria simulation in C++20"
+OUTPUT_DIRECTORY       = docs/doxygen
+INPUT                  = src/ docs/mainpage.md
+RECURSIVE              = YES
+FILE_PATTERNS          = *.hpp *.cpp *.md
+USE_MDFILE_AS_MAINPAGE = docs/mainpage.md
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+HIDE_UNDOC_MEMBERS     = NO
+SHOW_INCLUDE_FILES     = YES
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_COLORSTYLE        = DARK
+GENERATE_TREEVIEW      = YES
+FULL_SIDEBAR           = NO
+GENERATE_LATEX         = NO
+
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+UML_LOOK               = YES
+TEMPLATE_RELATIONS     = YES
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+DOT_CLEANUP            = YES
+
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
+JAVADOC_AUTOBRIEF      = YES
