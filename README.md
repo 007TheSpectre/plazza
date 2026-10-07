@@ -1,10 +1,10 @@
-> **Epitech project — `G-CCP-400` (`theplazza`)**
+> **Epitech · `G-CCP-400` ("theplazza")** — team project built with
+> [pnyxxx](https://github.com/pnyxxx).
 >
-> Built with [pnyxxx](https://github.com/pnyxxx).
-> I was the lead developer on this project.
+> **My role:** lead developer.
 >
-> This is my own copy of the assignment repository, published here as a
-> portfolio piece. The original repository is private.
+> This repository is my own copy of the assignment, published as a portfolio
+> piece. The original repository is private.
 
 ---
 
